@@ -12,6 +12,8 @@ from eth_utils import (
     encode_hex,
     event_abi_to_log_topic,
     is_list_like,
+    keccak,
+    to_hex,
     to_tuple,
 )
 
@@ -27,6 +29,13 @@ from web3.utils.encoding import (
 )
 from web3.utils.normalizers import (
     BASE_RETURN_NORMALIZERS,
+)
+from web3.utils.toolz import (
+    complement,
+    compose,
+    cons,
+    curry,
+    valfilter,
 )
 
 from .abi import (
@@ -221,3 +230,110 @@ def get_event_data(event_abi, log_entry):
     }
 
     return AttributeDict.recursive(event_data)
+
+
+@to_tuple
+def pop_singlets(seq):
+    yield from (i[0] if is_list_like(i) and len(i) == 1 else i for i in seq)
+
+
+@curry
+def remove_trailing_from_seq(seq, remove_value=None):
+    index = len(seq)
+    while index > 0 and seq[index - 1] == remove_value:
+        index -= 1
+    return seq[:index]
+
+
+normalize_topic_list = compose(
+    remove_trailing_from_seq(remove_value=None),
+    pop_singlets,)
+
+
+def is_indexed(arg):
+    if arg.is_indexed is True:
+        return True
+
+
+not_indexed = complement(is_indexed)
+
+
+class EventFilterBuilder:
+    fromBlock = None
+    toBlock = None
+    address = None
+
+    def __init__(self, event_abi):
+        self.event_abi = event_abi
+        if self.event_abi['anonymous'] is False:
+            self.event_topic = event_abi_to_log_topic(event_abi)
+        else:
+            self.event_topic = []
+        _args = dict()
+        for item in self.event_abi['inputs']:
+            _args[item['name']] = EventArgument(
+                arg_type=item['type'],
+                name=item['name'],
+                indexed=item['indexed'])
+
+        self.args = AttributeDict(_args)
+        self.indexed_args = valfilter(is_indexed, self.args)
+        self.data_args = valfilter(not_indexed, self.args)
+
+    @property
+    def topics(self):
+        arg_topics = tuple(arg.encoded_match_values for arg in self.indexed_args.values())
+        return normalize_topic_list(cons(to_hex(self.event_topic), arg_topics))
+
+    @property
+    def data_arguments(self):
+        return tuple(
+            arg.encoded_match_values for arg in self.data_args)
+
+    @property
+    def filter_params(self):
+        params = {
+            "topics": self.topics,
+            "fromBlock": self.fromBlock,
+            "toBlock": self.toBlock,
+            "address": self.address
+        }
+        return valfilter(lambda x: x is not None, params)
+
+    def deploy(self, web3):
+        log_filter = web3.eth.filter(self.filter_params)
+        # TODO: Data argument handling
+        return log_filter
+
+
+class EventArgument:
+    def __init__(self, arg_type, name, indexed):
+        self.arg_type = arg_type
+        self.name = name
+        self.is_indexed = indexed
+        self.match_values = (None,)
+        self.encoded_match_values = (None,)
+
+    def _normalize_match_value(self, value):
+        return value
+
+    def _encode_match_value(self, value):
+        encoded_value = encode_single(self.arg_type, value)
+        if self.is_indexed and is_dynamic_sized_type(value):
+            return to_hex(keccak(encoded_value))
+        else:
+            return to_hex(encoded_value)
+
+    def match_single(self, value):
+        normalized_value = self._normalize_match_value(value)
+        encoded_value = self._encode_match_value(normalized_value)
+        self.match_values = (normalized_value,)
+        self.encoded_match_values = (encoded_value,)
+
+    def match_any(self, *values):
+        normalized_values = tuple(
+            self._normalize_match_value(value) for value in values)
+        encoded_values = tuple(
+            self._encode_match_value(value) for value in normalized_values)
+        self.match_values = normalized_values
+        self.encoded_match_values = encoded_values
