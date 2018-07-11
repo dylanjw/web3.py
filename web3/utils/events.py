@@ -15,6 +15,7 @@ from eth_utils import (
     keccak,
     to_hex,
     to_tuple,
+    to_dict,
 )
 
 from web3.exceptions import (
@@ -265,18 +266,8 @@ class EventFilterBuilder:
 
     def __init__(self, event_abi):
         self.event_abi = event_abi
-        if self.event_abi['anonymous'] is False:
-            self.event_topic = event_abi_to_log_topic(event_abi)
-        else:
-            self.event_topic = []
-        _args = dict()
-        for item in self.event_abi['inputs']:
-            _args[item['name']] = EventArgument(
-                arg_type=item['type'],
-                name=item['name'],
-                indexed=item['indexed'])
-
-        self.args = AttributeDict(_args)
+        self.event_topic = self._initial_event_topic()
+        self.args = AttributeDict(self._init_argument_filters())
         self.indexed_args = valfilter(is_indexed, self.args)
         self.data_args = valfilter(not_indexed, self.args)
 
@@ -305,35 +296,52 @@ class EventFilterBuilder:
         # TODO: Data argument handling
         return log_filter
 
+    def _initial_event_topic(self):
+        if self.event_abi['anonymous'] is False:
+            return event_abi_to_log_topic(self.event_abi)
+        else:
+            return list()
 
-class EventArgument:
+    @to_dict
+    def _init_argument_filters(self):
+        for item in self.event_abi['inputs']:
+            key = item['name']
+            value = ArgumentFilter(
+                arg_type=item['type'],
+                name=item['name'],
+                indexed=item['indexed'])
+
+            yield key, value
+
+
+def _normalize(value):
+    return value
+
+
+class ArgumentFilter:
     def __init__(self, arg_type, name, indexed):
         self.arg_type = arg_type
-        self.name = name
         self.is_indexed = indexed
-        self.match_values = (None,)
+        self.raw_match_values = (None,)
         self.encoded_match_values = (None,)
+        self.is_dynamic = is_dynamic_sized_type(self.arg_type)
 
-    def _normalize_match_value(self, value):
-        return value
-
-    def _encode_match_value(self, value):
+    def _encode(self, value):
         encoded_value = encode_single(self.arg_type, value)
-        if self.is_indexed and is_dynamic_sized_type(value):
+        if self.is_indexed and self.is_dynamic:
             return to_hex(keccak(encoded_value))
         else:
             return to_hex(encoded_value)
 
     def match_single(self, value):
-        normalized_value = self._normalize_match_value(value)
-        encoded_value = self._encode_match_value(normalized_value)
-        self.match_values = (normalized_value,)
-        self.encoded_match_values = (encoded_value,)
+        normalized = _normalize(value)
+        encoded = self._encode(normalized)
+        self.raw_match_values = (normalized,)
+        self.encoded_match_values = (encoded,)
 
     def match_any(self, *values):
-        normalized_values = tuple(
-            self._normalize_match_value(value) for value in values)
-        encoded_values = tuple(
-            self._encode_match_value(value) for value in normalized_values)
-        self.match_values = normalized_values
-        self.encoded_match_values = encoded_values
+        normalized = tuple(_normalize(value) for value in values)
+        encoded = tuple(
+            self._encode(value) for value in normalized)
+        self.raw_match_values = normalized
+        self.encoded_match_values = encoded
