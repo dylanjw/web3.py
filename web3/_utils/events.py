@@ -18,15 +18,15 @@ from eth_utils import (
     to_hex,
     to_tuple,
 )
+from eth_utils.curried import (
+    apply_formatter_if,
+)
 
 import web3
 from web3._utils.encoding import (
     encode_single_packed,
     hexstr_if_str,
     to_bytes,
-)
-from web3._utils.formatters import (
-    apply_formatter_if,
 )
 from web3._utils.normalizers import (
     BASE_RETURN_NORMALIZERS,

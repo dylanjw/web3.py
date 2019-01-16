@@ -15,10 +15,10 @@ from eth_keys.datatypes import (
 from eth_utils import (
     to_dict,
 )
-
-from web3._utils.formatters import (
+from eth_utils.curried import (
     apply_formatter_if,
 )
+
 from web3._utils.method_formatters import (
     STANDARD_NORMALIZERS,
 )

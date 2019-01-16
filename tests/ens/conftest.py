@@ -103,7 +103,7 @@ def ens_setup():
     # ** Set up ENS contracts **
 
     # remove account that creates ENS, so test transactions don't have write access
-    accounts = w3.eth.accounts
+    accounts = list(w3.eth.accounts)
     ens_key = accounts.pop()
 
     # create ENS contract

@@ -5,13 +5,15 @@ from eth_utils import (
     is_hex,
     is_string,
 )
-
-from web3._utils.formatters import (
+from eth_utils.curried import (
     apply_formatter_if,
     apply_formatter_to_array,
-    apply_formatters_to_args,
     apply_formatters_to_dict,
     apply_key_map,
+)
+
+from web3._utils.formatters import (
+    apply_formatters_to_args,
     hex_to_integer,
     integer_to_hex,
     is_array_of_dicts,

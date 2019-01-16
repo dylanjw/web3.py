@@ -2,6 +2,11 @@ import codecs
 import operator
 
 from eth_utils.curried import (
+    apply_formatter_at_index,
+    apply_formatter_if,
+    apply_formatter_to_array,
+    apply_formatters_to_dict,
+    apply_one_of_formatters,
     combine_argument_formatters,
     is_address,
     is_bytes,
@@ -32,11 +37,6 @@ from web3._utils.encoding import (
     to_hex,
 )
 from web3._utils.formatters import (
-    apply_formatter_at_index,
-    apply_formatter_if,
-    apply_formatter_to_array,
-    apply_formatters_to_dict,
-    apply_one_of_formatters,
     hex_to_integer,
     integer_to_hex,
     is_array_of_dicts,
@@ -190,10 +190,11 @@ BLOCK_FORMATTERS = {
     'receiptsRoot': to_hexbytes(32),
     'stateRoot': to_hexbytes(32),
     'totalDifficulty': to_integer_if_hex,
-    'transactions': apply_one_of_formatters((
-        (apply_formatter_to_array(transaction_formatter), is_array_of_dicts),
-        (apply_formatter_to_array(to_hexbytes(32)), is_array_of_strings),
-    )),
+    'transactions': apply_one_of_formatters(
+        (
+            (is_array_of_dicts, apply_formatter_to_array(transaction_formatter)),
+            (is_array_of_strings, apply_formatter_to_array(to_hexbytes(32))),
+        )),
     'transactionsRoot': to_hexbytes(32),
 }
 
@@ -251,8 +252,8 @@ filter_params_formatter = apply_formatters_to_dict(FILTER_PARAMS_FORMATTERS)
 
 
 filter_result_formatter = apply_one_of_formatters((
-    (apply_formatter_to_array(log_entry_formatter), is_array_of_dicts),
-    (apply_formatter_to_array(to_hexbytes(32)), is_array_of_strings),
+    (is_array_of_dicts, apply_formatter_to_array(log_entry_formatter)),
+    (is_array_of_strings, apply_formatter_to_array(to_hexbytes(32))),
 ))
 
 TRANSACTION_PARAM_FORMATTERS = {
@@ -300,8 +301,8 @@ PYTHONIC_REQUEST_FORMATTERS = {
         block_number_formatter,
     ),
     'eth_estimateGas': apply_one_of_formatters((
-        (estimate_gas_without_block_id, is_length(1)),
-        (estimate_gas_with_block_id, is_length(2)),
+        (is_length(1), estimate_gas_without_block_id),
+        (is_length(2), estimate_gas_with_block_id),
     )),
     'eth_sendTransaction': apply_formatter_at_index(transaction_param_formatter, 0),
     # personal

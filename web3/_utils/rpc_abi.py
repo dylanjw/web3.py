@@ -1,12 +1,12 @@
 from eth_utils import (
     to_dict,
 )
+from eth_utils.curried import (
+    apply_formatter_at_index,
+)
 
 from web3._utils.abi import (
     map_abi_data,
-)
-from web3._utils.formatters import (
-    apply_formatter_at_index,
 )
 from web3._utils.toolz import (
     curry,

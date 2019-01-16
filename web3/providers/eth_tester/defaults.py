@@ -14,9 +14,12 @@ from eth_utils import (
     is_null,
     keccak,
 )
+from eth_utils.curried import (
+    apply_formatter_if,
+)
 
 from web3._utils.formatters import (
-    apply_formatter_if,
+    static_return,
 )
 from web3._utils.toolz import (
     compose,
@@ -55,12 +58,6 @@ def without_params(fn):
 @curry
 def preprocess_params(eth_tester, params, preprocessor_fn):
     return eth_tester, preprocessor_fn(params)
-
-
-def static_return(value):
-    def inner(*args, **kwargs):
-        return value
-    return inner
 
 
 def client_version(eth_tester, params):
